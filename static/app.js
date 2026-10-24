@@ -6408,12 +6408,35 @@ function evPlacesCard(e, where) {
   return box;
 }
 
-/* Карточка события. back — карточка, из которой сюда перешли (она остаётся открытой под этой):
+/* Окна события на этот и следующий год — полосы по месяцам, как в годовом виде календаря */
+function evYearStrip(e, wins, now) {
+  const y = new Date(now * 1000).getFullYear();
+  const span = (yr) => [new Date(yr, 0, 1).getTime() / 1000, new Date(yr + 1, 0, 1).getTime() / 1000];
+  const [a0, a1] = span(y);
+  const pct = (t, [y0, y1]) => Math.max(0, Math.min(100, ((t - y0) / (y1 - y0)) * 100));
+  const months = [...Array(12)].map((_, m) => {
+    const a = new Date(y, m, 1).getTime() / 1000, b = new Date(y, m + 1, 1).getTime() / 1000;
+    return h('div', { class: 'evy-m', style: `left:${pct(a, [a0, a1])}%;width:${pct(b, [a0, a1]) - pct(a, [a0, a1])}%` },
+      new Date(y, m, 1).toLocaleDateString(LOCALE, { month: 'short' }));
+  });
+  const rows = [y, y + 1].map((yr) => {
+    const s = span(yr);
+    return h('div', { class: 'evy-r' }, h('div', { class: 'evy-l' }, h('b', null, yr)),
+      h('div', { class: 'evy-t' }, wins.filter(([ws, we]) => we > s[0] && ws < s[1]).map((w) =>
+        h('div', { class: `evy-b ev-t-${e.theme}`, title: evRange(w), style: `left:${pct(w[0], s)}%;width:max(4px, ${pct(w[1], s) - pct(w[0], s)}%)` })),
+        now >= s[0] && now < s[1] ? h('div', { class: 'evy-now', style: `left:${pct(now, s)}%`, title: L('сегодня') }) : null));
+  });
+  return h('div', { class: 'evy sm' }, h('div', { class: 'evy-r head' }, h('div', { class: 'evy-l' }), h('div', { class: 'evy-t' }, months)), rows);
+}
+
+/* Карточка события по вкладкам: «Общее» (что это, когда, управление), расписание, где проходит, кто появляется,
+   задания, части, вывод ядра. back — карточка, из которой сюда перешли (она остаётся открытой под этой):
    «‹ Назад» закрывает эту и обновляет ту. Переходы дальше (часть, главное, существо) — так же. */
 function eventDrawer(entry, onChange, back) {
   const box = h('div', { class: 'drawer ev-drawer', role: 'dialog', 'aria-modal': 'true' },
     h('div', { class: 'drawer-b' }, h('div', { class: 'empty' }, L('Загружаю…'))));
   let closing = false;
+  let tab = 'main';                                        // после «Включить» и т.п. карточка перерисуется на той же вкладке
   const close = openOverlay(box, back ? back.refresh : null);
   const changed = () => { draw(); if (onChange) onChange(); };
   const draw = async () => {
@@ -6444,15 +6467,25 @@ function eventDrawer(entry, onChange, back) {
     const adds = [cnt.creatures ? L('существ: {0}', fmtN(cnt.creatures)) : null, cnt.objects ? L('объектов: {0}', fmtN(cnt.objects)) : null,
       cnt.quests ? L('заданий: {0}', fmtN(cnt.quests)) : null, cnt.changes ? L('меняет внешность: {0}', fmtN(cnt.changes)) : null].filter(Boolean);
     const removes = [cnt.creatures_off ? L('существ: {0}', fmtN(cnt.creatures_off)) : null, cnt.objects_off ? L('объектов: {0}', fmtN(cnt.objects_off)) : null].filter(Boolean);
-    const info = card(L('Расписание и что даёт'), null, null, h('div', { class: 'card-b' }, facts([
+    const wins = e.upcoming.filter((w) => w[1] > now);
+    const soon = wins.find((w) => w[0] > now);
+    const toTab = (k, text) => h('a', { href: '#', onclick: (ev) => { ev.preventDefault(); tab = k; show(); } }, text);
+    const info = card(L('Сведения'), null, null, h('div', { class: 'card-b' }, facts([
       [L('Расписание'), evSchedule(e)],
       [L('Сейчас'), e.current ? `${L('идёт по расписанию')}: ${evRange(e.current)} · ${evLeft(e.current[1] - now)}` : L('по расписанию не идёт')],
-      [L('Ближайшие'), e.upcoming.length ? h('div', { class: 'ev-dates' }, e.upcoming.filter((w) => w[1] > now).slice(0, 6).map((w) =>
-        h('span', { class: 'chip static' }, evRange(w)))) : L('по расписанию не будет')],
+      [L('Ближайшие'), soon ? `${evRange(soon)} · ${evIn(soon[0] - now)}` : L('по расписанию не будет')],
       [L('Добавляет в мир'), adds.length ? adds.join(', ') : '—'],
       removes.length ? [L('Убирает из мира'), removes.join(', ')] : null,
       e.parent_name ? [L('Часть события'), h('a', { href: '#', onclick: (ev) => { ev.preventDefault(); goEvent(e.parent); } }, e.parent_name)] : null,
+      e.family.length ? [L('Части события'), toTab('parts', L('{0} шт.', e.family.length))] : null,
     ].filter(Boolean))));
+    const when = [
+      card(L('Ближайшие'), evSchedule(e), null, wins.length ? h('div', { class: 'list' }, wins.map((w) =>
+        h('div', { class: 'li' }, gicon(e.icon, 's'), h('span', { class: 'grow' }, evRange(w)),
+          w[0] <= now ? badge(L('идёт'), 'ok') : h('span', { class: 'muted small' }, evIn(w[0] - now)))))
+        : h('div', { class: 'card-b' }, h('p', { class: 'muted' }, L('по расписанию не будет')))),
+      e.occurence >= 10080 && wins.length ? card(L('Когда'), null, null, h('div', { class: 'card-b' }, evYearStrip(e, wins, now))) : null,
+    ];
 
     const warns = [];
     if (e.schedule_type === 0 && !e.parent) warns.push(L('Это событие ведёт скрипт ядра. Ручной запуск добавит его существ и объекты, но не саму логику (нападения, этапы).'));
@@ -6501,10 +6534,23 @@ function eventDrawer(entry, onChange, back) {
         h('span', { class: 'grow' }, h('b', null, c.name), c.sub ? h('span', { class: 'muted' }, ` <${c.sub}>`) : null),
         c.n > 1 ? h('span', { class: 'muted small' }, '×' + c.n) : null)))) : null;
     const core = e.core ? card(L('Что говорит ядро'), `.event ${e.entry}`, null, h('pre', { class: 'out ev-core' }, e.core)) : null;
-    [[placesCard, 'ev-places'], [info, 'ev-info'], [ctrl, 'ev-ctrl'], [fam, 'ev-parts'], [npcs, 'ev-npcs'], [quests, 'ev-quests'], [core, 'ev-core']]
-      .forEach(([c, k]) => foldCard(c, k));
-    fill(box, drawerBox(e.name, L('событие №{0}', e.entry), close, back), h('div', { class: 'drawer-b' }, hero,
-      h('div', { class: 'grid g2 ev-cols' }, h('div', { class: 'stack' }, placesCard, info, ctrl, fam), h('div', { class: 'stack' }, npcs, quests, core))));
+    const views = [
+      ['main', L('Общее'), [h('div', { class: 'grid g2 ev-cols' }, info, ctrl)]],
+      ['when', L('Расписание'), when],
+      ['places', L('Где проходит'), [placesCard]],
+      npcs ? ['npcs', `${L('Кто появляется')} · ${fmtN(e.creatures.length)}`, [npcs]] : null,
+      quests ? ['quests', `${L('Задания')} · ${fmtN(e.quests.length)}`, [quests]] : null,
+      fam ? ['parts', `${L('Части события')} · ${e.family.length}`, [fam]] : null,
+      core ? ['core', L('Ядро'), [core]] : null,
+    ].filter(Boolean);
+    const bar = h('div', { class: 'ev-tabs' }), body = h('div', { class: 'stack' });
+    const show = () => {
+      if (!views.some(([k]) => k === tab)) tab = 'main';
+      bar.replaceChildren(tabs(views.map(([k, l]) => [k, l]), tab, (k) => { tab = k; show(); }));
+      body.replaceChildren(...views.find(([k]) => k === tab)[2].filter(Boolean));
+    };
+    show();
+    fill(box, drawerBox(e.name, L('событие №{0}', e.entry), close, back), h('div', { class: 'drawer-b' }, hero, bar, body));
   };
   draw();
 }

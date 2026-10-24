@@ -1138,7 +1138,7 @@ html:root[data-style="wow"] { font-synthesis: none; }
 .ev-when { color: var(--ink-2); }
 .list .li.ev-soon .grow { display: flex; flex-direction: column; gap: 1px; white-space: normal; }
 
-.ev-drawer { width: min(1180px, 100%); }
+.ev-drawer { width: min(1180px, 100%); min-height: min(860px, 100%); }   /* вкладки разной длины — окно не прыгает */
 .ev-hero { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: 20px 22px; border-radius: 14px; color: #fff;
   background-image: var(--ev-pat), var(--ev-bg); background-size: 56px 56px, cover; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1), 0 10px 26px rgba(0, 0, 0, .25); }
 .ev-hero-ico .gi.xxl { box-shadow: 0 0 0 3px var(--ev), 0 10px 24px rgba(0, 0, 0, .5); }
@@ -1156,6 +1156,9 @@ html:root[data-style="wow"] { font-synthesis: none; }
 .ev-npc .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
 .ev-core { margin: 0 16px 14px; white-space: pre-wrap; font-size: 12px; }
 .ev-cols { align-items: start; }
+.ev-tabs .tabs { margin-bottom: 0; }
+.evy.sm .evy-r { grid-template-columns: 52px minmax(0, 1fr); }
+.evy.sm .evy-b { cursor: default; }
 :root[data-style="wow"] .ev-hero h3, :root[data-style="wow"] .ev-now-t b { color: #fff3c4; }
 @media (max-width: 900px) {
   .ev-top, .ev-cols { grid-template-columns: 1fr; }
